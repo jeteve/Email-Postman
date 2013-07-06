@@ -13,6 +13,7 @@ WriteMakefile(
                : ()),
               PL_FILES            => {},
               PREREQ_PM => {
+                            'DateTime' => 0.70,
                             'Email::Abstract' => 3.004,
                             'Email::Address' => 1.892,
                             'Net::DNS' => 0.66,

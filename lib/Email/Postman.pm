@@ -8,6 +8,8 @@ use Email::Address;
 use Net::DNS;
 use Net::SMTP;
 
+use Email::Postman::Report;
+
 unless( Log::Log4perl->initialized() ){
   Log::Log4perl->easy_init($DEBUG);
 }
@@ -17,6 +19,8 @@ my $LOGGER = Log::Log4perl->get_logger();
 has 'dns_resolv' => ( is => 'ro' , isa => 'Net::DNS::Resolver', required => 1, lazy => 1 , builder => '_build_dns_resolv' );
 has 'hello' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localdomain');
 has 'from' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localuser');
+
+has 'debug' => ( is => 'rw' , isa => 'Bool', required => 1 , default => 1);
 
 sub _build_dns_resolv{
   my ($self) = @_;
@@ -73,6 +77,7 @@ sub deliver{
   ## Reset the bcc whatever happens
   $email->set_header('bcc');
 
+  return @reports;
 }
 
 
@@ -87,15 +92,18 @@ sub _deliver_email_to{
 
   my $res = $self->dns_resolv();
 
+  my $report = Email::Postman::Report->new({ about_email => $recpt->address() });
+
   my @mx = $res->mx($recpt->host());
   unless( @mx ){
-    $LOGGER->warn("No MX found for ".$recpt->host());
-    ## TODO: Return a report about no MX with $res->errorstring
-    return 0;
+    $report->set_failure_message("No MX host could be found for host '".$recpt->host()."'");
+    return $report;
   }
+
 
   ## Try each mx and return on the first success.
   foreach my $mx ( @mx ){
+    $report->reset();
     my $exchange = $mx->exchange();
     ## Works in taint mode.
     ( $exchange ) = ( $exchange =~ m/(.+)/ );
@@ -103,23 +111,47 @@ sub _deliver_email_to{
 
     my $smtp = Net::SMTP->new($exchange,
                               Hello => $self->hello(),
-                              Debug => 1,
+                              Debug => $self->debug(),
                               Timeout => 5);
     unless( $smtp ){
+      $report->set_failure_message("No SMTP for exchange '$exchange'");
       $LOGGER->warn("Cannot build smtp for ".$exchange);
-      ## And jump to next.
+      ## And jump to next. This MX could be down.
       next;
     }
 
-    $smtp->mail($self->from());
-    $smtp->to($recpt->address());
-    $smtp->data($email->as_string());
-    $smtp->dataend();
-    $smtp->quit();
+    unless( $smtp->mail($self->from()) ){
+      $report->set_failure_message("mail failure for '".$self->from."' : $!");
+      ## We trust ANY MX about this thing,
+      ## so we can just return the report. Same thing for any failures below.
+      return $report;
+    }
+    unless( $smtp->recipient($recpt->address()) ){
+      $report->set_failure_message("recipient failure for '".$recpt->address()."' : $!");
+      return $report;
+    }
+    unless( $smtp->data($email->as_string()) ){
+      $report->set_failure_message("data failure: $!");
+      return $report;
+    }
+    unless( $smtp->dataend() ){
+      $report->set_failure_message("dataend failure: $!");
+      return $report;
+    }
 
-    last;
+    unless( $smtp->quit() ){
+      $report->set_failure_message("quit failure: $!");
+      return $report;
+    }
+
+    $report->success(1);
+    $report->message('Success');
+    ## No need to try anything else. That is a success!
+    return $report;
   }## End of MX loop.
 
+  ## This is only in the case some MX are down
+  return $report;
 }
 
 __PACKAGE__->meta->make_immutable();

@@ -11,7 +11,8 @@ $MAIL_DIR =~ s/\/[^\/]+$//;
 $MAIL_DIR .= '/emails/';
 
 my $parser = MIME::Parser->new();
-
+## Avoid parser output going to disk
+$parser->output_to_core(1);
 
 $email = $parser->parse_open($MAIL_DIR.'simple.email');
 

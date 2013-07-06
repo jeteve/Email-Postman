@@ -24,7 +24,7 @@ WriteMakefile(
               BUILD_REQUIRES => {
                                  'MIME::Parser' => 5.502,
                                  'Test::More' => 0,
-                                }
+                                },
               dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
               clean               => { FILES => 'Email-Postman-*' },
              );

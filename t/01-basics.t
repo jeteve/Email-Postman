@@ -22,6 +22,7 @@ unless( $ENV{LIVE_TEST} ){
   ## Mock the SMTP class.
   $mock_smtp = Test::MockObject->new();
   $mock_smtp->fake_module('Net::SMTP' , new => sub{ $mock_smtp });
+  $mock_smtp->set_always('message' , 'Some mocked failure message');
   $mock_smtp->set_true('mail' , 'recipient', 'data', 'dataend' , 'quit');
 }
 

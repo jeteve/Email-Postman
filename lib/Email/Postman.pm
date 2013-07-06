@@ -63,22 +63,37 @@ sub deliver{
 
   my @reports = ();
 
-  ## Do the to
+  ## Do the tos headers
   foreach my $to ( @To ){
-    push @reports , $self->_deliver_email_to($email, $to);
+    my @recpts = Email::Address->parse($to);
+    foreach my $recpt ( @recpts ){
+      my $report = $self->_deliver_email_to($email, $recpt);
+      $report->about_header('To');
+      push @reports , $report;
+    }
   }
 
-  ## Do the cc
+  ## Do the cc ones.
   foreach my $to ( @cc ){
-    push @reports , $self->_deliver_email_to($email, $to);
+    my @recpts = Email::Address->parse($to);
+    foreach my $recpt ( @recpts ){
+      my $report = $self->_deliver_email_to($email, $recpt);
+      $report->about_header('cc');
+      push @reports , $report;
+    }
   }
 
-  ## Do the Bcc
+  ## Do the Bcc ones.
   foreach my $to ( @bcc ){
-    ## Tell the bcc he has been bcc'ed
-    $email->set_header('bcc' => $to );
-    push @reports , $self->_deliver_email_to($email, $to);
+    my @recpts = Email::Address->parse($to);
+    foreach my $recpt ( @recpts ){
+      $email->set_header('bcc' => $recpt->original() );
+      my $report = $self->_deliver_email_to($email, $recpt);
+      $report->about_header('bcc');
+      push @reports , $report;
+    }
   }
+
   ## Reset the bcc to what they were.
   $email->set_header('bcc', @bcc);
 
@@ -88,12 +103,8 @@ sub deliver{
 
 ## Deliver to one and ONLY one recipient and return a report.
 sub _deliver_email_to{
-  my ($self, $email , $to) = @_;
-  $LOGGER->debug("Delivering to '$to'");
-  my @recpts = Email::Address->parse($to);
-  if( @recpts != 1 ){ confess("More than one recipient in $to"); }
-
-  my $recpt = $recpts[0];
+  my ($self, $email , $recpt) = @_;
+  $LOGGER->debug("Delivering to '$recpt'");
 
   my $res = $self->dns_resolv();
 
@@ -111,12 +122,14 @@ sub _deliver_email_to{
     my $exchange = $mx->exchange();
     ## Works in taint mode.
     ( $exchange ) = ( $exchange =~ m/(.+)/ );
-    $LOGGER->debug("Giving a go to ".$exchange);
+    $LOGGER->debug("Trying to deliver at ".$exchange);
 
     my $smtp = Net::SMTP->new($exchange,
                               Hello => $self->hello(),
                               Debug => $self->debug(),
-                              Timeout => 5);
+                              Timeout => 5,
+                              ExactAddresses => 1,
+                             );
     unless( $smtp ){
       $report->set_failure_message("No SMTP for exchange '$exchange'");
       $LOGGER->warn("Cannot build smtp for ".$exchange);
@@ -125,26 +138,26 @@ sub _deliver_email_to{
     }
 
     unless( $smtp->mail($self->from()) ){
-      $report->set_failure_message("mail failure for '".$self->from."' : $!");
+      $report->set_failure_message("mail failure for '".$self->from."' : ".$smtp->message());
       ## We trust ANY MX about this thing,
       ## so we can just return the report. Same thing for any failures below.
       return $report;
     }
     unless( $smtp->recipient($recpt->address()) ){
-      $report->set_failure_message("recipient failure for '".$recpt->address()."' : $!");
+      $report->set_failure_message("recipient failure for '".$recpt->address()."' : ".$smtp->message());
       return $report;
     }
     unless( $smtp->data($email->as_string()) ){
-      $report->set_failure_message("data failure: $!");
+      $report->set_failure_message("data failure: ".$smtp->message());
       return $report;
     }
     unless( $smtp->dataend() ){
-      $report->set_failure_message("dataend failure: $!");
+      $report->set_failure_message("dataend failure: ".$smtp->message());
       return $report;
     }
 
     unless( $smtp->quit() ){
-      $report->set_failure_message("quit failure: $!");
+      $report->set_failure_message("quit failure: ".$smtp->message());
       return $report;
     }
 
@@ -190,6 +203,9 @@ Just a debugging flag. Defaults to 0
 
 Deliver the given email (something compatible with L<Email::Abstract> (or an email Abstract itself) to its recipients.
 and returns an array of L<Email::Postman::Report> about the success/failures of email address the delivery was attempted.
+
+Note that this method CAN be slow, due to distant email servers response times. You are encouraged to
+use this asynchronously.
 
 Usage:
 

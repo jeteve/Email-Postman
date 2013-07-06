@@ -1,12 +1,32 @@
 package Email::Postman;
+use Carp;
+use Moose;
+use Log::Log4perl qw/:easy/;
 
-use 5.006;
-use strict;
-use warnings;
+use Email::Abstract;
+use Email::Address;
+use Net::DNS;
+use Net::SMTP;
+
+unless( Log::Log4perl->initialized() ){
+  Log::Log4perl->easy_init($DEBUG);
+}
+
+my $LOGGER = Log::Log4perl->get_logger();
+
+has 'dns_resolv' => ( is => 'ro' , isa => 'Net::DNS::Resolver', required => 1, lazy => 1 , builder => '_build_dns_resolv' );
+has 'hello' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localdomain');
+has 'from' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localuser');
+
+sub _build_dns_resolv{
+  my ($self) = @_;
+  return Net::DNS::Resolver->new();
+}
+
 
 =head1 NAME
 
-Email::Postman - The great new Email::Postman!
+Email::Postman - Send multirecipient emails to the world.
 
 =head1 VERSION
 
@@ -16,38 +36,110 @@ Version 0.01
 
 our $VERSION = '0.01';
 
+sub deliver{
+  my ($self, $email) = @_;
+
+  ## Make sure we have an email abstract.
+  unless( ( ref($email) // '' ) eq 'Email::Abstract' ){
+    $email = Email::Abstract->new($email);
+  }
+  ## We have an email abstract.
+  ## Make sure bccs are really blind.
+  my @bcc = $email->get_header('bcc');
+  $email->set_header('bcc');
+
+  my @To = $email->get_header('To');
+  my @cc = $email->get_header('cc');
+
+
+  my @reports = ();
+
+  ## Do the to
+  foreach my $to ( @To ){
+    push @reports , $self->_deliver_email_to($email, $to);
+  }
+
+  ## Do the cc
+  foreach my $to ( @cc ){
+    push @reports , $self->_deliver_email_to($email, $to);
+  }
+
+  ## Do the Bcc
+  foreach my $to ( @bcc ){
+    ## Tell the bcc he has been bcc'ed
+    $email->set_header('bcc' => $to );
+    push @reports , $self->_deliver_email_to($email, $to);
+  }
+  ## Reset the bcc whatever happens
+  $email->set_header('bcc');
+
+}
+
+
+## Deliver to one and ONLY one recipient and return a report.
+sub _deliver_email_to{
+  my ($self, $email , $to) = @_;
+  $LOGGER->debug("Delivering to $to");
+  my @recpts = Email::Address->parse($to);
+  if( @recpts != 1 ){ confess("More than one recipient in $to"); }
+
+  my $recpt = $recpts[0];
+
+  my $res = $self->dns_resolv();
+
+  my @mx = $res->mx($recpt->host());
+  unless( @mx ){
+    $LOGGER->warn("No MX found for ".$recpt->host());
+    ## TODO: Return a report about no MX with $res->errorstring
+    return 0;
+  }
+
+  ## Try each mx and return on the first success.
+  foreach my $mx ( @mx ){
+    my $exchange = $mx->exchange();
+    ## Works in taint mode.
+    ( $exchange ) = ( $exchange =~ m/(.+)/ );
+    $LOGGER->debug("Giving a go to ".$exchange);
+
+    my $smtp = Net::SMTP->new($exchange,
+                              Hello => $self->hello(),
+                              Debug => 1,
+                              Timeout => 5);
+    unless( $smtp ){
+      $LOGGER->warn("Cannot build smtp for ".$exchange);
+      ## And jump to next.
+      next;
+    }
+
+    $smtp->mail($self->from());
+    $smtp->to($recpt->address());
+    $smtp->data($email->as_string());
+    $smtp->dataend();
+    $smtp->quit();
+
+    last;
+  }## End of MX loop.
+
+}
+
+__PACKAGE__->meta->make_immutable();
+
+__END__
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+my $postman = Email::Postman->new();
 
-Perhaps a little code snippet.
+my $email = any Email::Abstract compatible email.
 
-    use Email::Postman;
+my @reports = $postman->deliver($email);
 
-    my $foo = Email::Postman->new();
-    ...
+=head1 METHODS
 
-=head1 EXPORT
+=head2 deliver
 
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
-
-=head1 SUBROUTINES/METHODS
-
-=head2 function1
-
-=cut
-
-sub function1 {
-}
-
-=head2 function2
-
-=cut
-
-sub function2 {
-}
+Deliver the given email (something compatible with L<Email::Abstract> to its recipients.
+and reports about the success/failures of the deliveries.
 
 =head1 AUTHOR
 

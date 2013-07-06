@@ -17,10 +17,15 @@ unless( Log::Log4perl->initialized() ){
 my $LOGGER = Log::Log4perl->get_logger();
 
 has 'dns_resolv' => ( is => 'ro' , isa => 'Net::DNS::Resolver', required => 1, lazy => 1 , builder => '_build_dns_resolv' );
-has 'hello' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localdomain');
-has 'from' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localuser');
 
-has 'debug' => ( is => 'rw' , isa => 'Bool', required => 1 , default => 1);
+## The sending domain.
+has 'hello' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localdomain');
+
+## The sender.
+has 'from' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localuser@localdomain');
+
+## Just a flag.
+has 'debug' => ( is => 'rw' , isa => 'Bool', required => 1 , default => 0);
 
 sub _build_dns_resolv{
   my ($self) = @_;
@@ -74,8 +79,8 @@ sub deliver{
     $email->set_header('bcc' => $to );
     push @reports , $self->_deliver_email_to($email, $to);
   }
-  ## Reset the bcc whatever happens
-  $email->set_header('bcc');
+  ## Reset the bcc to what they were.
+  $email->set_header('bcc', @bcc);
 
   return @reports;
 }
@@ -84,7 +89,7 @@ sub deliver{
 ## Deliver to one and ONLY one recipient and return a report.
 sub _deliver_email_to{
   my ($self, $email , $to) = @_;
-  $LOGGER->debug("Delivering to $to");
+  $LOGGER->debug("Delivering to '$to'");
   my @recpts = Email::Address->parse($to);
   if( @recpts != 1 ){ confess("More than one recipient in $to"); }
 
@@ -99,7 +104,6 @@ sub _deliver_email_to{
     $report->set_failure_message("No MX host could be found for host '".$recpt->host()."'");
     return $report;
   }
-
 
   ## Try each mx and return on the first success.
   foreach my $mx ( @mx ){
@@ -148,7 +152,7 @@ sub _deliver_email_to{
     $report->message('Success');
     ## No need to try anything else. That is a success!
     return $report;
-  }## End of MX loop.
+  } ## End of MX loop.
 
   ## This is only in the case some MX are down
   return $report;
@@ -166,12 +170,30 @@ my $email = any Email::Abstract compatible email.
 
 my @reports = $postman->deliver($email);
 
+=head1 ATTRIBUTES
+
+=head2 hello
+
+The domain from which the emails will be sent. Defaults to 'localdomain'
+
+=head2 from
+
+The default 'from' enveloppe email address. Defaults to 'localuser@localdomain'
+
+=head2 debug
+
+Just a debugging flag. Defaults to 0
+
 =head1 METHODS
 
 =head2 deliver
 
-Deliver the given email (something compatible with L<Email::Abstract> to its recipients.
-and reports about the success/failures of the deliveries.
+Deliver the given email (something compatible with L<Email::Abstract> (or an email Abstract itself) to its recipients.
+and returns an array of L<Email::Postman::Report> about the success/failures of email address the delivery was attempted.
+
+Usage:
+
+  my @report = $this->deliver($email);
 
 =head1 AUTHOR
 

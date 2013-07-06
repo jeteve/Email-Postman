@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use Test::More;
-
+use Test::MockObject;
 
 use Email::Postman;
 
@@ -17,8 +17,15 @@ my $parser = MIME::Parser->new();
 $parser->output_to_core(1);
 
 
-my $postman = Email::Postman->new();
+my $mock_smtp;
+unless( $ENV{LIVE_TEST} ){
+  ## Mock the SMTP class.
+  $mock_smtp = Test::MockObject->new();
+  $mock_smtp->fake_module('Net::SMTP' , new => sub{ $mock_smtp });
+  $mock_smtp->set_true('mail' , 'recipient', 'data', 'dataend' , 'quit');
+}
 
+my $postman = Email::Postman->new({ debug => 1 });
 
 {
   my $email = $parser->parse_open($MAIL_DIR.'simple.email');
@@ -29,6 +36,7 @@ my $postman = Email::Postman->new();
 }
 
 {
+  $mock_smtp->set_false('recipient') if ( $mock_smtp );
   my $email = $parser->parse_open($MAIL_DIR.'wrongrecpt.email');
   ok( my @reports = $postman->deliver($email) , "Ok can deliver the email");
   ok( ! $reports[0]->success() , "Sending this was NOT a success");

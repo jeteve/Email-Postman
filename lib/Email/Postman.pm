@@ -138,26 +138,26 @@ sub _deliver_email_to{
     }
 
     unless( $smtp->mail($self->from()) ){
-      $report->set_failure_message("mail failure for '".$self->from."' : ".$smtp->message());
+      $report->set_failure_message("SMTP MAIL failure for '".$self->from."' : ".$smtp->message());
       ## We trust ANY MX about this thing,
       ## so we can just return the report. Same thing for any failures below.
       return $report;
     }
     unless( $smtp->recipient($recpt->address()) ){
-      $report->set_failure_message("recipient failure for '".$recpt->address()."' : ".$smtp->message());
+      $report->set_failure_message("SMTP RECIPIENT failure for '".$recpt->address()."' : ".$smtp->message());
       return $report;
     }
     unless( $smtp->data($email->as_string()) ){
-      $report->set_failure_message("data failure: ".$smtp->message());
+      $report->set_failure_message("SMTP DATA failure: ".$smtp->message());
       return $report;
     }
     unless( $smtp->dataend() ){
-      $report->set_failure_message("dataend failure: ".$smtp->message());
+      $report->set_failure_message("SMTP DATAEND failure: ".$smtp->message());
       return $report;
     }
 
     unless( $smtp->quit() ){
-      $report->set_failure_message("quit failure: ".$smtp->message());
+      $report->set_failure_message("SMTP QUIT failure: ".$smtp->message());
       return $report;
     }
 

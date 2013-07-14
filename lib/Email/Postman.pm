@@ -22,7 +22,9 @@ has 'dns_resolv' => ( is => 'ro' , isa => 'Net::DNS::Resolver', required => 1, l
 has 'hello' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localdomain');
 
 ## The sender.
-has 'from' => ( is => 'ro' , isa => 'Str', required => 1, default => 'localuser@localdomain');
+has 'from' => ( is => 'ro' , isa => 'Str', required => 1, default => '"Local user" <localuser@localdomain>');
+
+has 'from_address' => ( is => 'ro' , isa => 'Str' , required => 1 , lazy => 1 , builder => '_build_from_address' );
 
 ## Just a flag.
 has 'debug' => ( is => 'rw' , isa => 'Bool', required => 1 , default => 0);
@@ -30,6 +32,12 @@ has 'debug' => ( is => 'rw' , isa => 'Bool', required => 1 , default => 0);
 sub _build_dns_resolv{
   my ($self) = @_;
   return Net::DNS::Resolver->new();
+}
+
+sub _build_from_address{
+  my ($self) = @_;
+  my ( $recpt , @rest )  = Email::Address->parse($self->from());
+  return $recpt->address();
 }
 
 
@@ -137,8 +145,8 @@ sub _deliver_email_to{
       next;
     }
 
-    unless( $smtp->mail($self->from()) ){
-      $report->set_failure_message("SMTP MAIL failure for '".$self->from."' : ".$smtp->message());
+    unless( $smtp->mail($self->from_address()) ){
+      $report->set_failure_message("SMTP MAIL failure for '".$self->from_address()."' : ".$smtp->message());
       ## We trust ANY MX about this thing,
       ## so we can just return the report. Same thing for any failures below.
       return $report;

@@ -185,7 +185,7 @@ __END__
 
 =head1 SYNOPSIS
 
-my $postman = Email::Postman->new();
+my $postman = Email::Postman->new({ hello => 'my-domain.com', from => 'postmaster@domain.com' } );
 
 my $email = any Email::Abstract compatible email.
 
@@ -199,7 +199,9 @@ The domain from which the emails will be sent. Defaults to 'localdomain'
 
 =head2 from
 
-The default 'from' enveloppe email address. Defaults to 'localuser@localdomain'
+The default 'from' ENVELOPPE email address. Defaults to 'localuser@localdomain'
+
+Note that this is NOT related to the 'From' header that your L<Email::Abstract> object should have.
 
 =head2 debug
 
@@ -212,7 +214,10 @@ Just a debugging flag. Defaults to 0
 Deliver the given email (something compatible with L<Email::Abstract> (or an email Abstract itself) to its recipients.
 and returns an array of L<Email::Postman::Report> about the success/failures of email address the delivery was attempted.
 
-Note that this method CAN be slow, due to distant email servers response times. You are encouraged to
+Note 1: This method will attempt to deliver the email using SMTP using a direct connection
+to the MX records of the recipient's domains.
+
+Note 2: that this method CAN be slow, due to distant email servers response times. You are encouraged to
 use this asynchronously.
 
 Usage:

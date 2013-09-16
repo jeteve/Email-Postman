@@ -6,7 +6,9 @@ MANIFEST			This list of files
 README
 t/00-load.t
 t/01-basics.t
+t/02-multiple.t
 t/boilerplate.t
+t/emails/multiple.email
 t/emails/simple.email
 t/emails/wrongrecpt.email
 t/manifest.t

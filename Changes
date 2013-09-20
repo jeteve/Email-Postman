@@ -1,5 +1,8 @@
 Revision history for Email-Postman
 
+0.02    20 Sep 2013
+	Added missing build dependency
+
 0.01    6 Jul 2013
         First version, released on an unsuspecting world. Basic features.
 

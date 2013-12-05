@@ -1,5 +1,8 @@
-Revision history for Email-Postman
+Revision history for Perl module Email::Postman
 
-0.01    6 Jul 2013
-        First version, released on an unsuspecting world. Basic features.
+0.02 2013-09-20
+    - Added missing build dependency
+
+0.01 2013-07-06
+    - First version, released on an unsuspecting world. Basic features.
 

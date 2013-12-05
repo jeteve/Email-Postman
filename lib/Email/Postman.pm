@@ -47,17 +47,17 @@ Email::Postman - Send multirecipient emails to the world.
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub deliver{
   my ($self, $email) = @_;
 
   ## Make sure we have an email abstract.
-  unless( ( ref($email) // '' ) eq 'Email::Abstract' ){
+  unless( ( ref($email) || '' ) eq 'Email::Abstract' ){
     $email = Email::Abstract->new($email);
   }
   ## We have an email abstract.

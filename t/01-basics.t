@@ -3,8 +3,11 @@ use strict;
 use warnings;
 use Test::More;
 use Test::MockObject;
+use Test::MockModule;
 
 use Email::Postman;
+
+use Net::DNS;
 
 use MIME::Parser;
 
@@ -18,12 +21,18 @@ $parser->output_to_core(1);
 
 
 my $mock_smtp;
+my $net_dns;
+
 unless( $ENV{LIVE_TEST} ){
   ## Mock the SMTP class.
   $mock_smtp = Test::MockObject->new();
   $mock_smtp->fake_module('Net::SMTP' , new => sub{ $mock_smtp });
   $mock_smtp->set_always('message' , 'Some mocked failure message');
   $mock_smtp->set_true('mail' , 'recipient', 'data', 'dataend' , 'quit');
+
+  ## Mock the dns resolution.
+  $net_dns = new Test::MockModule('Net::DNS');
+  $net_dns->mock('mx', sub{ return ( Net::DNS::RR->new('fakedomain MX 10 fakemx.example.com') ); });
 }
 
 my $postman = Email::Postman->new({ debug => 1 });

@@ -4,6 +4,7 @@ use warnings;
 use Data::Dumper;
 use Test::More;
 use Test::MockObject;
+use Test::MockModule;
 
 use Email::Postman;
 
@@ -19,6 +20,8 @@ $parser->output_to_core(1);
 
 
 my $mock_smtp;
+my $net_dns;
+
 unless( $ENV{LIVE_TEST} ){
   ## Mock the SMTP class.
   $mock_smtp = Test::MockObject->new();
@@ -28,6 +31,10 @@ unless( $ENV{LIVE_TEST} ){
   ## The fourth mail should not work.
   my $mail_i = 0;
   $mock_smtp->mock('mail' , sub{ return !( $mail_i++ == 3 ); });
+
+  ## Mock the dns resolution.
+  $net_dns = new Test::MockModule('Net::DNS');
+  $net_dns->mock('mx', sub{ return ( Net::DNS::RR->new('fakedomain MX 10 fakemx.example.com') ); });
 }
 
 my $postman = Email::Postman->new({ debug => 1 });

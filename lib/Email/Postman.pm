@@ -118,7 +118,7 @@ sub _deliver_email_to{
 
   my $report = Email::Postman::Report->new({ about_email => $recpt->address() });
 
-  my @mx = $res->mx($recpt->host());
+  my @mx = Net::DNS::mx( $res, $recpt->host());
   unless( @mx ){
     $report->set_failure_message("No MX host could be found for host '".$recpt->host()."'");
     return $report;

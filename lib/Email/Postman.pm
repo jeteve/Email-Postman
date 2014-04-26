@@ -282,5 +282,3 @@ See http://dev.perl.org/licenses/ for more information.
 
 
 =cut
-
-1; # End of Email::Postman
